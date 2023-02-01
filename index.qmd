@@ -8,7 +8,7 @@ author:
   affiliations:
     name: Constructor University
 date: "1. Februar 2023"
-abstract: "Diese Modellrechnungen berechnen hypothetische Wahlergebnisse für den Gesetzentwurf der Fraktionen SPD, BÜNDNIS 90/DIE GRÜNEN und FDP zur Reform des Bundestagswahlrechts aufgrund der Wahlergebnisse von 2021. Nach diesem Vorschlag werden nur 598 Bundestagsmandate zugeteilt. Überhangmandate können also nicht mehr zugeteilt werden. Das heißt, dass einige Wahlkreismandate nicht zugeteilt werden können, wenn die Partei nicht genügend Mandatsansprüche durch ihre Hauptstimmen (derzeit Zweitstimmen) erreicht hat. Zusammengefasst gibt es folgende Erkenntnisse: (1) In 35 Wahlkreisen würden die Wahlkreissieger_innen nicht in den Bundestag einziehen (gekappt). (2) Die gekappten Wahlkreissieger_innen hätten ihre Wahlkreise mit durchschnittlich 28.7% und maximale 35.1% als mit riesigem Abstand zu einer absoluten Mehrheit. (3) In den meisten dieser Wahlkreise (bis auf fünf) würden allerdings einer oder mehrere Wahlkreiskandidat_innen anderer Parteien die auch auf der Landesliste ihrer Partei stehen im Bundestag sein. (4) Der Anteil der Abgeordneten mit einem Wahlkreismandate würde mit 44.1% deutlich höher sein, als derzeit mit 40.6%. (5) Der Frauenanteil wäre minimal niedriger und der ALterdurchschnitt minimal höher. (6) Für die CSU (und prinzipiell auch für andere Parteien) gibt es eine Strategie ohne Landesliste mit unabhängigen CSU-empfohlenen Wahlkreiskandidat_innen ihre derzeitigen 45 Abgeordneten wieder in den Bundestag mit dann 598 Sitzen zu bekommen und damit ihren Mandatsanteil substantiell von 5.69% auf 7.53% zu erhöhen. Diese Strategie ist allerdings riskant. **Der R-Code zur Berechnung der Ergebnisse ist in diesem Dokument und auf GitHub verfügbar.**" 
+abstract: "Diese Modellrechnungen berechnen hypothetische Wahlergebnisse für den Gesetzentwurf der Fraktionen SPD, BÜNDNIS 90/DIE GRÜNEN und FDP zur Reform des Bundestagswahlrechts aufgrund der Wahlergebnisse von 2021. Nach diesem Vorschlag werden nur 598 Bundestagsmandate zugeteilt. Überhangmandate können also nicht mehr zugeteilt werden. Das heißt, dass einige Wahlkreismandate nicht zugeteilt werden können, wenn die Partei nicht genügend Mandatsansprüche durch ihre Hauptstimmen (derzeit Zweitstimmen) erreicht hat. Zusammengefasst gibt es folgende Erkenntnisse: (1) In 35 Wahlkreisen würden die Wahlkreissieger_innen nicht in den Bundestag einziehen (gekappt). (2) Die gekappten Wahlkreissieger_innen hätten ihre Wahlkreise mit relativer Mehrheit von durchschnittlich 28.7% und maximal 35.1% gewonnen, also mit riesigem Abstand zu einer absoluten Mehrheit. (3) In den meisten dieser Wahlkreise (bis auf fünf) würden allerdings einer oder mehrere Wahlkreiskandidat_innen anderer Parteien die über die Landeslisten ihrer Parteien im Bundestag sein. (4) Der Anteil der Abgeordneten mit einem Wahlkreismandate würde mit 44.1% deutlich höher sein, als derzeit mit 40.6%. (5) Der Frauenanteil wäre minimal niedriger und der Altersdurchschnitt minimal höher. (6) Für die CSU (und prinzipiell auch für andere Parteien) gibt es eine Strategie ohne Landesliste mit unabhängigen CSU-empfohlenen Wahlkreiskandidat_innen ihre derzeitigen 45 Abgeordneten wieder in den Bundestag zu bekommen. In dem kleineren Bundestag mit dann 598 Sitzen würden sie damit ihren Mandatsanteil substantiell von 5.69% auf 7.53% erhöhen. Diese Strategie ist allerdings riskant. **Der R-Code zur Berechnung der Ergebnisse ist in diesem Dokument und auf GitHub verfügbar.**" 
 format: 
   html:
     standalone: true
@@ -19,25 +19,25 @@ format:
 ---
 ```{r}
 #| label: packages
-#| include: false
+#| warning: false
 library(tidyverse) # Data Wrangling and Visualization
+library(gt) # Tabellen
 library(sf) # Working with Shapefiles
 library(DT) # interaktive Tabellen
-library(gt) # Tabellen
-library(plotly) # Interactive maps
+library(plotly) # Interactive Karte
 ```
 
 ## Daten und grundsätzliche Berechnungen
 
-Der Bundeswahlleiter[^1] stellt einen Datensatz mit den Anzahlen aller Erst- und Zweitstimmen für jeden der 299 Wahlkreise und jeden Wahlvorschlag bereit (dieser enthält auch Daten zur Anzahl der Wahlberechtigten). Wahlvorschläge für die Erststimme sind Wahlkreiskandidat_innen von Parteien und Unabhängige, Wahlvorschläge für die Zweitstimme sind die Landeslisten die Parteien und Wählervereinigungen in den Bundesländern aufstellen. Die Wahlvorschläge inklusive der Name der Kandidat_innen und einiger demographischer Informationen wurden ebenfalls bereitgestellt.[^2] Außerdem gibt es Shapefiles der für die Wahl 2023 gültigen Wahlkreise.
+Der Bundeswahlleiter[^1] stellt einen Datensatz mit den Anzahlen aller Erst- und Zweitstimmen für jeden der 299 Wahlkreise und jeden Wahlvorschlag bereit.^[Dieser Datensatz enthält auch Daten zur Anzahl der Wahlberechtigten.] Wahlvorschläge für die Erststimme sind Wahlkreiskandidat_innen von Parteien und Unabhängige, Wahlvorschläge für die Zweitstimme sind die Landeslisten die Parteien und Wählervereinigungen in den Bundesländern aufstellen. Die Wahlvorschläge inklusive der Name der Kandidat_innen und einiger demographischer Informationen wurden ebenfalls bereitgestellt.[^2] Außerdem gibt es Shapefiles der für die Wahl 2023 gültigen Wahlkreise.
 
 [^1]: <http://www.bundeswahlleiter.de>, möglicherweise wird dies durch dem Amtsantritt der neuen Bundeswahlleiterin zum 1.1.2023 umbenannt?
 
 [^2]: Dieser Datensatz ist nach Bundeswahlordnung nach einer gewissen Zeit nicht mehr bei <http://www.bundeswahlleiter.de> downloadbar.
 
-Die drei Datensätze (Wahlergebnis, Wahlvorschläge, Wahlkreis-Shapefiles) werden verwendet und eine Funktion zur Verteilung von $N$ Sitzen an Parteien $k$ Wahlvorschläge mit Stimmenanzahlen $m_1,\dots,m_k$ zu verteilen. Im folgenden verwenden wir immer das Saint-Laguë-Verfahren wie im Wahlgesetz vorgesehen.[^3]
+Die drei Datensätze (Wahlergebnis, Wahlvorschläge, Wahlkreis-Shapefiles) werden verwendet und eine Funktion zur Verteilung von $N$ Sitzen an Parteien $k$ Wahlvorschläge mit Stimmenanzahlen $m_1,\dots,m_k$ zu verteilen. Im Folgenden verwenden wir immer das Saint-Laguë-Verfahren verwenden, wie im Wahlgesetz vorgesehen.[^3]
 
-[^3]: Die Grundidee des Verfahrens ist es, eine proportionale Aufteilung der Sitzanteile zu berechnen. In der Regel sind die Bruchzahlen und müssen gerundet werden. Dabei kann es dazu kommen, dass die Gesamtsumme nicht $N$ ergibt. Dann muss ein anderer Divisor bei der Berechnung der proportionalen Anteils gewählt werden, bis es passt. Mathematisch gibt es dazu nur eine eindeutige richtige Lösung. Eine andere Berechnungs-Methode, die zum gleich Ergebnis führt ist die Verteilung nach einer Reihe von Höchstzahlen, die in der Funktion benutzt wird. Details dazu unter <https://de.wikipedia.org/wiki/Sainte-Lagu%C3%AB-Verfahren> oder <https://www.wahlrecht.de/verfahren/stlague.html>.
+[^3]: Die Grundidee des Verfahrens ist es, eine proportionale Aufteilung der Sitzanteile zu berechnen. In der Regel sind die Bruchzahlen und müssen gerundet werden. Dabei kann es dazu kommen, dass die Gesamtsumme nicht $N$ ergibt. Dann muss ein anderer Divisor bei der Berechnung der proportionalen Anteils gewählt werden, bis es passt. Mathematisch gibt es dazu nur eine eindeutige richtige Lösung. Eine andere Berechnungsmethode, die zum gleichen Ergebnis führt, ist die Verteilung nach einer Reihe von Höchstzahlen, die in der Funktion benutzt wird. Details dazu unter <https://de.wikipedia.org/wiki/Sainte-Lagu%C3%AB-Verfahren> oder <https://www.wahlrecht.de/verfahren/stlague.html>.
 
 ```{r}
 #| label: data
