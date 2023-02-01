@@ -1,0 +1,8 @@
+project: 
+  type: website
+  output-dir: docs
+  
+website: 
+  site-url: https://janlorenz.github.io/bundestag
+  repo-url: https://github.com/janlorenz/bundestag
+  repo-actions: [issue]
