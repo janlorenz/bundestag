@@ -80,6 +80,8 @@ k <- read_csv2("~/Documents/data/bundeswahlleiter/btw21_kandidaturen_utf8.csv", 
   mutate(Namenszusatz = replace_na(Namenszusatz,"")) |> 
   select(Gebietsnummer, Gebietsname, Gruppenname, everything())
 
+# Da die Daten zu den Kandidatinnen aus rechtlichen Gründen nicht mehr beim Bundeswahlleiter downloadbar sind, werden sie nicht in des Repositorium gestellt. Bitte beim Bundeswahlleiter oder beim Autor anfragen. 
+
 # Funktion zur Berechnung vom N Mandaten proportional zum Vektor Stimmen nach der Divisormethode 
 # mit Zuteilung nach Höchstzahlen
 zuteilen_nach_hoechstzahlen <- function(N, Stimmen, divisorfolge="saintlague", ersterdivisor=NA, output="Mandate") {
