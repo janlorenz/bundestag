@@ -495,3 +495,228 @@ Insgesamt bietet der Gesetzentwurf der Regierungsfraktionen einen guten *kleinen
 
 Einen konkreten Vorschlag zu einer Verhältniswahl mit Mehrmandatswahlkreisen dazu hat *Mehr Demokratie e.V.* ausgearbeitet <https://www.mehr-demokratie.de/fileadmin/pdf/Positionen17_Reform_Bundestagswahlrecht.pdf>. Mehr Informationen dazu hier 
 <https://www.mehr-demokratie.de/themen/wahlrecht/wahlrecht-12816> und in Modellrechnungen dazu in dieser Präsentation <https://docs.google.com/presentation/d/1gJP0ot42HLT8fggriPSeAEJlEOJYmWkgXbKo84o_jUY>. Der Vorschlag integriert die Idee der Ersatzstimme (oder auch Dualwahl <http://dualwahl.de>). 
+
+## Anhang {.appendix}
+
+### Die Änderung des Frauenanteils ist nicht statistisch signifikant 
+
+```{r}
+#| label: geschlecht-signifikanz
+Geschlecht <- Bundestag_Ampel |> 
+  count(Geschlecht, Gruppenname, Mandatart) |> 
+  group_by(Gruppenname,Mandatart) |> 
+  mutate(Anteil = n/sum(n)) |> 
+  ungroup() |> 
+  arrange(desc(Mandatart),Gruppenname) |> 
+  mutate(n_orig = c(14,2,81,17,35,10,2,1,7,9,
+                    82,39,58,9,36,20,
+                    16,20,70,23,41,61,38,47,1)) |> 
+  group_by(Gruppenname,Mandatart) |> 
+  mutate(Anteil_orig = n_orig/sum(n_orig), 
+         p_value = pbinom(n, size = sum(n), prob = Anteil_orig))
+
+Geschlecht_alle <- Geschlecht |> 
+  group_by(Geschlecht) |> 
+  summarize(n = sum(n), n_orig = sum(n_orig)) |> 
+  mutate(Anteil = n/sum(n),
+         Anteil_orig = n_orig/sum(n_orig)) |> 
+  ungroup() |> 
+  mutate(p_value = pbinom(n, size = sum(n), prob = Anteil_orig)) |> 
+  arrange(Geschlecht) |> filter(Geschlecht=="w")
+```
+
+Nach einer anderen Quelle betrug der Frauenanteil im Bundestag direkt nach der Wahl 2021 `r Geschlecht_alle$n_orig`/`r sum(Geschlecht$n_orig)` = `r round(100*Geschlecht_alle$Anteil_orig, digits = 1)`%.^[Die Anzahlen der Wahlkreis und Listen Mandate der Parteien nach Geschlecht sind kopiert von
+<https://docs.google.com/presentation/d/1gJP0ot42HLT8fggriPSeAEJlEOJYmWkgXbKo84o_jUY/edit#slide=id.g1048d2b409a_0_129>.
+Der Frauenanteil im Bundestag weicht minimal von der oben genannten Quelle des Bundestages ab, möglicherweise weil diese Zahl dem aktuellen Bundestag entspricht.]
+Der Anteil nach dem Vorschlag der Regierungsfraktionen wäre mit `r Geschlecht_alle$n`/`r sum(Geschlecht$n)` = `r round(100*Geschlecht_alle$Anteil, digits = 1)`% leicht niedriger, aber ist dieser Unterschied statischtisch signifikant? Der Begriff der statistischen Signifikanz wird oft falsch verstanden. Ein kleiner Unterschied kann signifikant sein, wenn es recht unwahrscheinlich ist, dass er durch Zufall entstanden ist. Anders herum kann auch ein größerer Unterschied nicht signifikant sein, wenn die zufällige Entstehung plausibel ist. Letzteres wird die Null-Hypothese genannt. In unserem Setting ist die Nullhypothese, dass im kleineren Bundestag Frauen mit der gleichen Wahrscheinlichkeit wie im realen großen Bundestag vertreten sind, also mit `r round(100*Geschlecht_alle$Anteil_orig, digits = 1)`. Wir würden also `r round(100*Geschlecht_alle$Anteil_orig, digits = 1)` mal 598 also gerundet `r round(598 * Geschlecht_alle$Anteil_orig)`. Real sind es nur `r Geschlecht_alle$n`, aber ist dieser Wert oder ein niedrigerer unwahrscheinlich? Diese Wahrscheinlichkeit kann ausgerechnet werden und wird p-Wert genannt.^[Die Anzahl der Frauen folgt in diesem Modell der Binomial-Verteilung.] Die Wahrscheinlichkeit, dass unter dieser Annahme `r Geschlecht_alle$n` oder weniger Frauen in einem  Bundestag der Größe 598 wären beträgt `r round(100*Geschlecht_alle$p_value, digits = 1)`% und ist damit nicht unplausibel.^[Eine statistische Konvention ist es erst bei einer Wahrscheinlichkeit von unter 5% von statistischer Signifikanz zu sprechen.]
+
+Die folgenden Tabellen vergleichen die Frauenanteile im realen großen und im kleineren Bundestag von neuem Vorschlag gruppiert nach der Mandatart (Wahlkreis oder Liste), der Partei und von beidem zusammen. Dabei wird jeweils die Berechnung des p-Wertes wiederholt. Mit H0 wird dabei der jeweilige Frauenanteil im realen großen Bundestag benannt. 
+
+::: {.panel-tabset}
+
+### Mandatart
+
+```{r}
+#| label: geschlecht-mandatart
+format_Tabelle <- function(G) G  |> 
+  mutate(p_value = paste0(round(100*pbinom(n, size = sum(n), prob = Anteil_orig), digits=1),"%"),
+         `Prozent klein` = paste0(round(100*Anteil, digits=1),"%"),
+         `Prozent groß (H0)` = paste0(round(100*Anteil_orig, digits=1),"%")) |> 
+  filter(Geschlecht == "w") |> 
+  select(starts_with("Mandatart"), starts_with("Partei"), 
+         `Frauen klein` = n, `Prozent klein`, `Frauen groß` = n_orig,
+         `Prozent groß (H0)`, `p-Wert` = p_value) |> knitr::kable()
+
+Geschlecht |> 
+  group_by(Geschlecht, Mandatart) |> 
+  summarize(n = sum(n), n_orig = sum(n_orig), .groups = "drop") |> 
+  group_by(Mandatart) |> 
+  mutate(Anteil = n/sum(n),
+         Anteil_orig = n_orig/sum(n_orig)) |> 
+  ungroup() |> 
+  arrange(Mandatart) |> 
+  group_by(Mandatart) |> format_Tabelle()
+```
+
+### Parteien
+
+```{r}
+#| label: geschlecht-partei
+Geschlecht |> 
+  group_by(Geschlecht, Gruppenname) |> 
+  summarize(n = sum(n), n_orig = sum(n_orig), .groups = "drop") |> 
+  group_by(Gruppenname) |> 
+  mutate(Anteil = n/sum(n),
+         Anteil_orig = n_orig/sum(n_orig)) |> 
+  ungroup() |> 
+  arrange(Gruppenname) |> 
+  rename(Partei = Gruppenname) |> 
+  group_by(Partei) |> format_Tabelle()
+```
+
+### Parteien und Mandatart
+
+```{r}
+#| label: geschlecht-mandatart-partei
+Geschlecht |> 
+  rename(Partei = Gruppenname) |> 
+  group_by(Mandatart, Partei) |> format_Tabelle()
+```
+
+:::
+
+
+Auch in allen Teilgruppen ist eine zufällige Entstehung nicht unplausibel.^[In kleineren Gruppen ist allerdings naturgemäß der Einfluss des Zufalls größer.] Die Werte an sich zeigen, dass in viele Parteien der Frauenanteil sogar größer werden würde. Der kleine Abfall geschieht insbesondere bei der SPD. Dort liegt der Frauenanteil allerdings im großen und nach der Verminderung auch im kleinen Bundestag über 50%. 
+
+Für die Behauptung der Reformvorschlag würde zu einer Benachteiligung von Frauen führen, wie zum Beispiel in der [Lage der Nation 319](https://lagedernation.org/podcast/ldn319-lambrechts-ruecktritt-ukraine-die-panzer-interview-claudia-major-swp-gesetzentwurf-fuer-wahlrechtsreform-ermittlungsbefugnis-zu-lindner-kredit-polizeigewalt-in-luetzerath/) und folgenden behauptet, gibt es also keine Evidenz, bzw. nur anekdotische auf den Einzelfall bezogene. Aus dieser Hinsicht besteht also kein Änderungsbedarf wie etwa die Vergrößerung des Bundestages auf 650 Abgeordnete. Dazu sollte auch betont werden, dass die Regelgröße von 598 immer noch gemessen an der Bevölkerungszahl im internationalen Vergleich immer noch ein sehr großes Parlament ist.^[Diese bezieht sich auf die empirische Regularität, dass die Parlamentsgröße der Kubikwurzel der Bevölkerungszahl entspricht (siehe <https://en.wikipedia.org/wiki/Cube_root_law>).] Italien war bis vor kurzem mit einem Parlemant der Größe 600 in der gleichen Liga, hat es aber geschafft sich selbst zu reformieren und die Größe auf 400 reduziert. Für Deutschland würde eine Größe von 430-450 der international üblichen Größe entsprechen. Dazu im folgenden auch eine Modellrechnung. 
+
+### Modellrechnung bei gleichem Vorschlag und einer Bundestagsgröße von 450
+
+Der Vorschlag der Regierungsfraktionen lässt sich theoretisch ohne weiteres auch auf eine kleinere Regelgröße wie zum Beispiel 450 anwenden. Dadurch wird natürlich der Anteil der Wahlkreise mit 299 mehr als 50% und es wird noch mehr Überhang und noch mehr Kappungsbedarf geben. Realistisch ist diese Absenkung also nur kombiniert mit einer Verringerung der Anzahl der Wahlkreise, zum Beispiel auf 225. Die folgende Modellrechnung ist dennoch für den Fall von 299 Wahlkreisen.^[Eine Modellrechnung mit einer Wahlkreisreform ist deutlich aufwendiger.]
+
+```{r}
+#| label: fig-kleinerbundestag
+
+# Make the following anew
+Wahlkreissieger_Parteien_Land <- Kandidatenrankings |> 
+  filter(Wahlkreisrang == 1) |> 
+  group_by(Gruppenname, UegGebietsnummer, LAND_NAME) |> 
+  summarize(Wahlkreismandate = n(), .groups = "drop")
+# Anzahl der Wahlkreissieger bundesweit pro Partei, notwendig um Grundmandatsklausel zu prüfen
+Wahlkreissieger_Parteien_Bund <- Wahlkreissieger_Parteien_Land |> 
+  group_by(Gruppenname) |> 
+  summarize(Wahlkreismandate = sum(Wahlkreismandate), .groups = "drop")
+
+Parteien_Proporz_Bund_k <- bt |> filter(Stimme == 2, !is.na(Anzahl)) |> 
+  group_by(Gruppenname) |> 
+  summarize(Anzahl = sum(Anzahl)) |> 
+  mutate(Stimmenanteil = Anzahl/sum(Anzahl)) |> 
+  left_join(Wahlkreissieger_Parteien_Bund, by = "Gruppenname") |> 
+  mutate(Wahlkreismandate = replace_na(Wahlkreismandate, 0)) |> 
+  filter(Stimmenanteil >= 0.05 | # mehr als 5% bundesweit
+           Wahlkreismandate >= 3 | # oder mehr als drei Grundmandate
+           Gruppenname == "SSW") |> # oder SSW (nationale Minderheit)
+  mutate(Mandate = zuteilen_nach_hoechstzahlen(450, Anzahl))
+Landeslisten_Proporz_k <- Parteien_Proporz_Bund_k |> select(Gruppenname, Mandate) |> 
+  left_join(bt |> filter(Stimme == 2, !is.na(Anzahl)), by = "Gruppenname") |> 
+  group_by(Gruppenname, UegGebietsnummer, LAND_NAME) |>   
+  summarize(Anzahl = sum(Anzahl), Mandate = max(Mandate), .groups = "drop") |>
+  group_by(Gruppenname) |> 
+  mutate(Mandate = zuteilen_nach_hoechstzahlen(max(Mandate), Anzahl)) |> 
+  left_join(Wahlkreissieger_Parteien_Land, c("Gruppenname", "UegGebietsnummer", "LAND_NAME")) |> 
+  mutate(Wahlkreismandate = replace_na(Wahlkreismandate, 0)) |> 
+  ungroup()
+Mandatszahlen_k <- Landeslisten_Proporz_k |> 
+  mutate(Listenmandate = pmax(Mandate - Wahlkreismandate, 0),
+         Wahlkreismandate = pmin(Wahlkreismandate, Mandate)) |> 
+  select(-Anzahl, -Mandate) |> 
+  pivot_longer(c(Listenmandate, Wahlkreismandate), 
+               names_to = "Mandatart", values_to = "Anzahl_Mandate") 
+Wahlkreismandate_k <- Mandatszahlen_k |> filter(Mandatart == "Wahlkreismandate") |> 
+  left_join(Kandidatenrankings, by = c("Gruppenname", "UegGebietsnummer", "LAND_NAME")) |> 
+  filter(WKSiegerrang <= Anzahl_Mandate)
+Listenmandate_k <- Mandatszahlen_k |> filter(Mandatart == "Listenmandate") |> 
+  left_join(k |> filter(Kennzeichen == "Landesliste"), c("Gruppenname", "LAND_NAME" = "Gebietsname")) |> 
+  left_join(Kandidatenrankings |> select(Nachname,Vornamen,Namenszusatz, Wahlkreisrang), 
+            by = c("Namenszusatz", "Nachname", "Vornamen")) |> 
+  anti_join(Wahlkreismandate_k |> select(Nachname,Vornamen,Namenszusatz),by = c("Namenszusatz", "Nachname", "Vornamen")) |> 
+  arrange(LAND_NAME, Gruppenname,Listenplatz) |> 
+  group_by(LAND_NAME, Gruppenname) |> 
+  mutate(Listenplatz_neu = 1:n()) |> 
+  filter(Listenplatz_neu <= Anzahl_Mandate)
+
+Bundestag_Ampel_k <- bind_rows(Wahlkreismandate_k, Listenmandate_k) |> 
+  mutate(Mandatart = ifelse(Mandatart == "Wahlkreismandate", "Wahlkreis", "Landesliste"),
+         Wahlkreis = paste(str_pad(Gebietsnummer, width = 3, pad = 0), Gebietsname),
+         Wahlkreis = ifelse(VerknGebietsart == "Wahlkreis" & Mandatart == "Landesliste", 
+                            paste(str_pad(VerknGebietsnummer, width = 3, pad = 0), VerknGebietsname),
+                            Wahlkreis)
+  )
+
+Kein_Direktmandat_k <- Kandidatenrankings |> filter(Wahlkreisrang == 1) |> 
+  anti_join(Bundestag_Ampel_k |> select(Vornamen, Nachname, Gruppenname), by = c("Gruppenname", "Nachname", "Vornamen"))
+```
+
+::: {.panel-tabset}
+
+### Bundestag 450
+
+```{r}
+Bundestag_Ampel_k |> mutate(Name = paste0(Namenszusatz, " ", Nachname,", ",Vornamen)) |> 
+  select(Mandatart, Land = LAND_NAME, Partei = Gruppenname, Name, 
+         Wahlkreis, WK=Wahlkreisrang) |> 
+  DT::datatable(options = 
+                  list(language = 
+                         list(url = "//cdn.datatables.net/plug-ins/9dcbecd42ad/i18n/German.json")),
+                rownames = FALSE, 
+                caption = "", 
+                filter = "top")
+```
+
+### Parteien Bund
+
+```{r}
+Parteien_Proporz_Bund_k |> select(Partei = Gruppenname, Mandate, Wahlkreismandate) |> 
+  knitr::kable()
+```
+
+### Parteien Land
+
+```{r}
+Landeslisten_Proporz_k |> select(LAND_NAME, Gruppenname, M=Mandate, WK=Wahlkreismandate) |>
+  pivot_wider(names_from = Gruppenname, values_from = c(M, WK), 
+              names_vary = "slowest",
+              names_glue = "{Gruppenname}_{.value}") |> 
+  mutate(across(-LAND_NAME, .fns = ~ replace_na(.x, 0))) |>
+  select(-FDP_WK, -SSW_WK) |> 
+  gt(rowname_col = "LAND_NAME") |> 
+  tab_spanner_delim(delim = "_")
+```
+
+
+### Kein Direktmandat
+
+```{r}
+Kein_Direktmandat_k |> 
+  mutate(Name = paste0(Namenszusatz, " ", Nachname,", ",Vornamen), 
+         Wahlkreis = paste(str_pad(Gebietsnummer, width = 3, pad = 0), Gebietsname),
+         Prozent = round(Prozent, digits = 2)) |> 
+  select(Wahlkreis, Land = LAND_NAME, Name, Partei = Gruppenname, Prozent) |> 
+  DT::datatable(options = 
+                  list(language = 
+                         list(url = "//cdn.datatables.net/plug-ins/9dcbecd42ad/i18n/German.json")),
+                rownames = FALSE, 
+                caption = "", 
+                filter = "top")
+```
+
+
+:::
+
+
+
+
+
+
+
+
