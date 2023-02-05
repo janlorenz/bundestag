@@ -25,11 +25,13 @@ library(gt) # Tabellen
 library(sf) # Working with Shapefiles
 library(DT) # interaktive Tabellen
 library(plotly) # Interactive Karte
+library(tidymodels) # Hypothesis test mit resampling
+proz <- function(x, digits = 1) paste0(round(100*x, digits = digits),"%") # Formattierungs-Hilfe
 ```
 
 ## Daten und grundsätzliche Berechnungen
 
-Der Bundeswahlleiter[^1] stellt einen Datensatz mit den Anzahlen aller Erst- und Zweitstimmen für jeden der 299 Wahlkreise und jeden Wahlvorschlag bereit.^[Dieser Datensatz enthält auch Daten zur Anzahl der Wahlberechtigten.] Wahlvorschläge für die Erststimme sind Wahlkreiskandidat_innen von Parteien und Unabhängige, Wahlvorschläge für die Zweitstimme sind die Landeslisten die Parteien und Wählervereinigungen in den Bundesländern aufstellen. Die Wahlvorschläge inklusive der Name der Kandidat_innen und einiger demographischer Informationen wurden ebenfalls bereitgestellt.[^2] Außerdem gibt es Shapefiles der für die Wahl 2023 gültigen Wahlkreise.
+Der Bundeswahlleiter[^1] stellt einen Datensatz mit den Anzahlen aller Erst- und Zweitstimmen für jeden der 299 Wahlkreise und jeden Wahlvorschlag bereit.^[Dieser Datensatz enthält auch Daten zur Anzahl der Wahlberechtigten.] Wahlvorschläge für die Erststimme sind Wahlkreiskandidat_innen von Parteien und Unabhängige, Wahlvorschläge für die Zweitstimme sind die Landeslisten die Parteien und Wählervereinigungen in den Bundesländern aufstellen. Die Wahlvorschläge inklusive der Name der Kandidat_innen und einiger demographischer Informationen wurden ebenfalls bereitgestellt.[^2] Außerdem gibt es Shapefiles der für die Wahl 2021 gültigen Wahlkreise.
 
 [^1]: <http://www.bundeswahlleiter.de>, möglicherweise wird dies durch dem Amtsantritt der neuen Bundeswahlleiterin zum 1.1.2023 umbenannt?
 
@@ -79,8 +81,13 @@ shp <- shp |> left_join(Wahlkreisnamen, by = c("WKR_NR" = "Gebietsnummer")) |>
 k <- read_csv2("~/Documents/data/bundeswahlleiter/btw21_kandidaturen_utf8.csv", skip = 8, guess_max = 10000) |> 
   mutate(Namenszusatz = replace_na(Namenszusatz,"")) |> 
   select(Gebietsnummer, Gebietsname, Gruppenname, everything())
-
 # Da die Daten zu den Kandidatinnen aus rechtlichen Gründen nicht mehr beim Bundeswahlleiter downloadbar sind, werden sie nicht in des Repositorium gestellt. Bitte beim Bundeswahlleiter oder beim Autor anfragen. 
+
+# Liste der Gewählten von https://www.bundeswahlleiter.de/bundestagswahlen/2021/gewaehlte.html
+mdb <- read_csv2("data/btw21_gewaehlte-fortschreibung_utf8.csv", skip = 8) 
+gew <- mdb |> filter(WahltagGewaehlt == "X") # Die Analyse stützt sich auf die 736 am Wahltag gewählten. Im Datensatz sind 747 Personen.
+mdb_aktuell <- mdb |> filter(is.na(VerlustMitgliedschaftGrund))
+# Es gab also wohl bereits 11 Wechsel
 
 # Funktion zur Berechnung vom N Mandaten proportional zum Vektor Stimmen nach der Divisormethode 
 # mit Zuteilung nach Höchstzahlen
@@ -361,7 +368,7 @@ Wahlkreisstatistik |>
 
 ```{r}
 #| label: fig-WKmap
-#| fig-cap: "Wahlkreiskarte für die Bundestagwahl 2023 neuberechnet nach dem Vorschlag der Regierungsfraktionen."
+#| fig-cap: "Wahlkreiskarte für die Bundestagwahl 2021 neuberechnet nach dem Vorschlag der Regierungsfraktionen."
 WKmap <- Wahlkreisstatistik |> st_sf() |> 
   mutate(Anzahl = factor(Anzahl_Abgeordnete), 
          WK = Wahlkreis) |> 
@@ -416,8 +423,10 @@ WKSieg |> count(Liste, name = "Anzahl") |>
 
 ### Frauenanteil und Altersdurchschnitt
 
-Der Frauenanteil im großen Bundestag beträgt aktuell 34.7% und der Altersdurchschnitt im aktuellen Bundestag ist 47.3 Jahre.^[Quelle: <https://www.bundestag.de/dokumente/textarchiv/2021/kw39-wahlstatistik-863722>] Im kleineren Bundestag nach dem Vorschlag der Regierungsfraktionen wäre der Frauenanteil `r round(100*sum(Bundestag_Ampel$Geschlecht=="w")/598, digits=1)` und der Altersdurchschnitt `r round(2021 - mean(Bundestag_Ampel$Geburtsjahr), digits = 1)` Jahre.^[Berechnet als Differenz zwischen Amtsantrittsjahr 2021 und Durchschnitt der Geburtsjahre.] 
+Der Frauenanteil im großen Bundestag am Tag der Wahl betrug `r proz(sum(gew$Geschlecht=="w")/nrow(gew))` und der Altersdurchschnitt^[Berechnet als Differenz zwischen Amtsantrittsjahr 2021 und Durchschnitt der Geburtsjahre.] war
+`r round(2021 - mean(gew$Geburtsjahr), digits = 1)` Jahre.^[Inzwischen sind bereits elf gewählte Abgeordnete nicht mehr im Bundestag und durch Nachrücker_innen ersetzt worden. Sechs von diesen waren Wahlkreis-Abgeordnete. Es sind dadurch jetzt zwei Frauen mehr. Der jetzige Frauenanteil ist `r proz(sum(mdb_aktuell$Geschlecht=="w")/nrow(gew))`, der Altersdurchschnitt bezogen auf das Jahr 2021 ist inzwischen `r round(2021 - mean(mdb_aktuell$Geburtsjahr), digits = 1)`.] Im kleineren Bundestag nach dem Vorschlag der Regierungsfraktionen wäre der Frauenanteil `r proz(sum(Bundestag_Ampel$Geschlecht=="w")/598)` und der Altersdurchschnitt `r round(2021 - mean(Bundestag_Ampel$Geburtsjahr), digits = 1)` Jahre.
 
+In Anhang befindet sich eine Analyse zur statistischen Signifikanz dieser Änderungen. Es ist sehr plausibel, das die Änderungen des Frauenanteils eher zufällig ist. Die Änderung des Altersdurch
 
 ## Modellrechung: CSU Wahlkreiskandidaten als Unabhängige
 
@@ -498,22 +507,49 @@ Einen konkreten Vorschlag zu einer Verhältniswahl mit Mehrmandatswahlkreisen da
 
 ## Anhang {.appendix}
 
+```{r}
+#| label: signifikanz-bootstrapping-alter-geschlecht
+#| cache: true
+
+# Dies ist eine Berechnung der Signifikanz mit der Bootstrapping-Methode sowohl für das Alter wie auch für das Geschlecht
+
+set.seed(198703) # To make results fixed and cachable
+experiment <- tibble(id = 1:100000) |> 
+  group_by(id) |> 
+  mutate(Alter_replace = 2021 - mean(sample(gew$Geburtsjahr, size = 598, replace = TRUE)), 
+         Alter_noreplace = 2021 - mean(sample(gew$Geburtsjahr, size = 598, replace = FALSE))) |>
+  ungroup() |> 
+  summarize(p_replace = mean(Alter_replace >= 2021 - mean(Bundestag_Ampel$Geburtsjahr)), 
+            p_noreplace = mean(Alter_noreplace >= 2021 - mean(Bundestag_Ampel$Geburtsjahr)))
+experiment_Geschlecht <- tibble(id = 1:100000) |> 
+  group_by(id) |> 
+  mutate(g_replace = mean(sample(gew$Geschlecht=="w", size = 598, replace = TRUE)), 
+         g_noreplace = mean(sample(gew$Geschlecht=="w", size = 598, replace = FALSE))) |>
+  ungroup() |> 
+  summarize(p_replace = mean(g_replace <= mean(Bundestag_Ampel$Geschlecht == "w")), 
+            p_noreplace = mean(g_noreplace <= mean(Bundestag_Ampel$Geschlecht == "w")))
+```
+
+
 ### Die Änderung des Frauenanteils ist nicht statistisch signifikant 
 
 ```{r}
 #| label: geschlecht-signifikanz
-Geschlecht <- Bundestag_Ampel |> 
-  count(Geschlecht, Gruppenname, Mandatart) |> 
-  group_by(Gruppenname,Mandatart) |> 
+Geschlecht_orig <- gew |> 
+  select(Geschlecht, Partei = Gruppenname, Mandatart = Gebietsart) |> 
+  mutate(Mandatart = str_replace(Mandatart, "Land", "Landesliste")) |> 
+  count(Geschlecht, Partei, Mandatart, name = "n_orig") |> 
+  group_by(Mandatart,Partei)  |> 
+  mutate(Anteil_orig = n_orig/sum(n_orig))
+Geschlecht <- Bundestag_Ampel |> rename(Partei = Gruppenname) |> 
+  count(Geschlecht, Partei, Mandatart) |> 
+  group_by(Partei,Mandatart) |> 
   mutate(Anteil = n/sum(n)) |> 
   ungroup() |> 
-  arrange(desc(Mandatart),Gruppenname) |> 
-  mutate(n_orig = c(14,2,81,17,35,10,2,1,7,9,
-                    82,39,58,9,36,20,
-                    16,20,70,23,41,61,38,47,1)) |> 
-  group_by(Gruppenname,Mandatart) |> 
-  mutate(Anteil_orig = n_orig/sum(n_orig), 
-         p_value = pbinom(n, size = sum(n), prob = Anteil_orig))
+  arrange(desc(Mandatart),Partei) |> 
+  left_join(Geschlecht_orig, by = c("Geschlecht", "Mandatart", "Partei")) |> 
+  group_by(Partei,Mandatart) |> 
+  mutate(p_value = pbinom(n, size = sum(n), prob = Anteil_orig))
 
 Geschlecht_alle <- Geschlecht |> 
   group_by(Geschlecht) |> 
@@ -525,12 +561,10 @@ Geschlecht_alle <- Geschlecht |>
   arrange(Geschlecht) |> filter(Geschlecht=="w")
 ```
 
-Nach einer anderen Quelle betrug der Frauenanteil im Bundestag direkt nach der Wahl 2021 `r Geschlecht_alle$n_orig`/`r sum(Geschlecht$n_orig)` = `r round(100*Geschlecht_alle$Anteil_orig, digits = 1)`%.^[Die Anzahlen der Wahlkreis und Listen Mandate der Parteien nach Geschlecht sind kopiert von
-<https://docs.google.com/presentation/d/1gJP0ot42HLT8fggriPSeAEJlEOJYmWkgXbKo84o_jUY/edit#slide=id.g1048d2b409a_0_129>.
-Der Frauenanteil im Bundestag weicht minimal von der oben genannten Quelle des Bundestages ab, möglicherweise weil diese Zahl dem aktuellen Bundestag entspricht.]
-Der Anteil nach dem Vorschlag der Regierungsfraktionen wäre mit `r Geschlecht_alle$n`/`r sum(Geschlecht$n)` = `r round(100*Geschlecht_alle$Anteil, digits = 1)`% leicht niedriger, aber ist dieser Unterschied statischtisch signifikant? Der Begriff der statistischen Signifikanz wird oft falsch verstanden. Ein kleiner Unterschied kann signifikant sein, wenn es recht unwahrscheinlich ist, dass er durch Zufall entstanden ist. Anders herum kann auch ein größerer Unterschied nicht signifikant sein, wenn die zufällige Entstehung plausibel ist. Letzteres wird die Null-Hypothese genannt. In unserem Setting ist die Nullhypothese, dass im kleineren Bundestag Frauen mit der gleichen Wahrscheinlichkeit wie im realen großen Bundestag vertreten sind, also mit `r round(100*Geschlecht_alle$Anteil_orig, digits = 1)`. Wir würden also `r round(100*Geschlecht_alle$Anteil_orig, digits = 1)` mal 598 also gerundet `r round(598 * Geschlecht_alle$Anteil_orig)`. Real sind es nur `r Geschlecht_alle$n`, aber ist dieser Wert oder ein niedrigerer unwahrscheinlich? Diese Wahrscheinlichkeit kann ausgerechnet werden und wird p-Wert genannt.^[Die Anzahl der Frauen folgt in diesem Modell der Binomial-Verteilung.] Die Wahrscheinlichkeit, dass unter dieser Annahme `r Geschlecht_alle$n` oder weniger Frauen in einem  Bundestag der Größe 598 wären beträgt `r round(100*Geschlecht_alle$p_value, digits = 1)`% und ist damit nicht unplausibel.^[Eine statistische Konvention ist es erst bei einer Wahrscheinlichkeit von unter 5% von statistischer Signifikanz zu sprechen.]
+Der Frauenanteil im Bundestag direkt nach der Wahl 2021 betrug `r Geschlecht_alle$n_orig`/`r sum(Geschlecht$n_orig)` = `r proz(Geschlecht_alle$Anteil_orig)`.
+Der Anteil nach dem Vorschlag der Regierungsfraktionen wäre mit `r Geschlecht_alle$n`/`r sum(Geschlecht$n)` = `r proz(Geschlecht_alle$Anteil)` leicht niedriger, aber ist dieser Unterschied statistisch signifikant? Der Begriff der statistischen Signifikanz wird oft falsch verstanden. Ein kleiner Unterschied kann signifikant sein, wenn es recht unwahrscheinlich ist, dass er durch Zufall entstanden ist. Anders herum kann auch ein größerer Unterschied nicht signifikant sein, wenn die zufällige Entstehung plausibel ist, typischerweise, wenn die Stichprobe recht klein ist. Die Annahme, dass der Unterschied durch Zufall entstanden ist, wird Null-Hypothese genannt. In unserem Setting ist die Nullhypothese, dass im kleineren Bundestag Frauen mit der gleichen Wahrscheinlichkeit wie im realen großen Bundestag vertreten sind, also mit `r proz(Geschlecht_alle$Anteil_orig)`. Wir würden also `r proz(Geschlecht_alle$Anteil_orig)` mal 598 also gerundet `r round(598 * Geschlecht_alle$Anteil_orig)`. Real sind es nur `r Geschlecht_alle$n`, aber ist dieser Wert oder ein niedrigerer unwahrscheinlich? Diese Wahrscheinlichkeit kann ausgerechnet werden und wird p-Wert genannt.^[Die Anzahl der Frauen folgt in diesem Modell der Zufallsauswahl der Binomial-Verteilung.] Die Wahrscheinlichkeit, dass unter dieser Annahme `r Geschlecht_alle$n` oder weniger Frauen in einem  Bundestag der Größe 598 wären beträgt `r proz(Geschlecht_alle$p_value)` und ist damit nicht unplausibel.^[Eine statistische Konvention ist es erst bei einem p-Wert von unter 5% von statistischer Signifikanz zu sprechen.]
 
-Die folgenden Tabellen vergleichen die Frauenanteile im realen großen und im kleineren Bundestag von neuem Vorschlag gruppiert nach der Mandatart (Wahlkreis oder Liste), der Partei und von beidem zusammen. Dabei wird jeweils die Berechnung des p-Wertes wiederholt. Mit H0 wird dabei der jeweilige Frauenanteil im realen großen Bundestag benannt. 
+Die folgenden Tabellen vergleichen die Frauenanteile im realen großen und im kleineren Bundestag gruppiert nach der Mandatart (Wahlkreis oder Landesliste), der Partei und von beidem zusammen. Dabei wird jeweils die Berechnung des p-Wertes wiederholt. Mit H0 wird dabei der jeweilige Frauenanteil im realen großen Bundestag benannt. 
 
 ::: {.panel-tabset}
 
@@ -563,14 +597,13 @@ Geschlecht |>
 ```{r}
 #| label: geschlecht-partei
 Geschlecht |> 
-  group_by(Geschlecht, Gruppenname) |> 
+  group_by(Geschlecht, Partei) |> 
   summarize(n = sum(n), n_orig = sum(n_orig), .groups = "drop") |> 
-  group_by(Gruppenname) |> 
+  group_by(Partei) |> 
   mutate(Anteil = n/sum(n),
          Anteil_orig = n_orig/sum(n_orig)) |> 
   ungroup() |> 
-  arrange(Gruppenname) |> 
-  rename(Partei = Gruppenname) |> 
+  arrange(Partei) |> 
   group_by(Partei) |> format_Tabelle()
 ```
 
@@ -578,17 +611,25 @@ Geschlecht |>
 
 ```{r}
 #| label: geschlecht-mandatart-partei
-Geschlecht |> 
-  rename(Partei = Gruppenname) |> 
+Geschlecht |>  
   group_by(Mandatart, Partei) |> format_Tabelle()
 ```
 
 :::
 
 
-Auch in allen Teilgruppen ist eine zufällige Entstehung nicht unplausibel.^[In kleineren Gruppen ist allerdings naturgemäß der Einfluss des Zufalls größer.] Die Werte an sich zeigen, dass in viele Parteien der Frauenanteil sogar größer werden würde. Der kleine Abfall geschieht insbesondere bei der SPD. Dort liegt der Frauenanteil allerdings im großen und nach der Verminderung auch im kleinen Bundestag über 50%. 
+Auch in allen Teilgruppen ist eine zufällige Entstehung sehr plausibel.^[In kleineren Gruppen ist allerdings naturgemäß der Einfluss des Zufalls größer.] Die Werte an sich zeigen, dass in viele Parteien der Frauenanteil sogar größer werden würde. Der kleine Abfall im gesamten Bundestag geschieht insbesondere durch Effekte bei der SPD. Dort liegt der Frauenanteil allerdings im großen Bundestag schon klar über 50% und bleibt das auch nach der Verminderung. Von einer Benachteilung von Frauen kann man also nur sprechen, wenn die vorherige Überrepräsentation als "natur-gegeben" betrachtet wird. 
 
-Für die Behauptung der Reformvorschlag würde zu einer Benachteiligung von Frauen führen, wie zum Beispiel in der [Lage der Nation 319](https://lagedernation.org/podcast/ldn319-lambrechts-ruecktritt-ukraine-die-panzer-interview-claudia-major-swp-gesetzentwurf-fuer-wahlrechtsreform-ermittlungsbefugnis-zu-lindner-kredit-polizeigewalt-in-luetzerath/) und folgenden behauptet, gibt es also keine Evidenz, bzw. nur anekdotische auf den Einzelfall bezogene. Aus dieser Hinsicht besteht also kein Änderungsbedarf wie etwa die Vergrößerung des Bundestages auf 650 Abgeordnete. Dazu sollte auch betont werden, dass die Regelgröße von 598 immer noch gemessen an der Bevölkerungszahl im internationalen Vergleich immer noch ein sehr großes Parlament ist.^[Diese bezieht sich auf die empirische Regularität, dass die Parlamentsgröße der Kubikwurzel der Bevölkerungszahl entspricht (siehe <https://en.wikipedia.org/wiki/Cube_root_law>).] Italien war bis vor kurzem mit einem Parlemant der Größe 600 in der gleichen Liga, hat es aber geschafft sich selbst zu reformieren und die Größe auf 400 reduziert. Für Deutschland würde eine Größe von 430-450 der international üblichen Größe entsprechen. Dazu im folgenden auch eine Modellrechnung. 
+Die Nullhypothese der obigen Berechnungen geht davon aus, dass eine Wahrscheinlichkeit für die Auswahl einer Frau gibt. Eine andere Nullhypothese wäre, dass aus den 736 realen Abgeordneten 598 ausgewählt werden würden. Der p-Wert dazu lässt sich mit der Bootstrapping-Methode^[Details im nächsten Abschnitt zum Altersdurchschnitt] berechnen und ist mit `r proz(experiment_Geschlecht$p_noreplace)` niedriger aber auch nicht im Bereich in dem von statistischer Signifikanz gesprochen wird. 
+
+Für die Behauptung der Reformvorschlag würde zu einer Benachteiligung von Frauen führen, wie zum Beispiel in der [Lage der Nation 319](https://lagedernation.org/podcast/ldn319-lambrechts-ruecktritt-ukraine-die-panzer-interview-claudia-major-swp-gesetzentwurf-fuer-wahlrechtsreform-ermittlungsbefugnis-zu-lindner-kredit-polizeigewalt-in-luetzerath/) und folgenden behauptet, gibt es also keine Evidenz, bzw. eher anekdotische auf den Einzelfall bezogene. Aus dieser Hinsicht besteht also kein Änderungsbedarf wie etwa die Vergrößerung des Bundestages auf 650 Abgeordnete. Dieser Vorschlag sollte auch im Bezug zum Befund gesetzt werden, dass schon die Regelgröße von 598 immer noch gemessen an der Bevölkerungszahl im internationalen Vergleich ein sehr großes Parlament ist.^[Diese bezieht sich auf die empirische Regularität, dass die Parlamentsgröße der Kubikwurzel der Bevölkerungszahl entspricht (siehe <https://en.wikipedia.org/wiki/Cube_root_law>).] Italien war bis vor kurzem mit einem Parlament der Größe 600 in der gleichen Liga, hat es aber geschafft sich selbst zu reformieren und die Größe auf 400 reduziert. Für Deutschland würde eine Größe von 430-450 der international üblichen Größe entsprechen. Dazu im folgenden auch eine Modellrechnung. 
+
+### Die Änderung des Altersdurchschnitts wäre zwar nur ein halbes Jahr aber wahrscheinlich nicht zufällig
+
+Der Altersdurchschnitt nach dem neuen Vorschlag am Tag der Wahl 2021 wäre `r round(2021 - mean(Bundestag_Ampel$Geburtsjahr), digits = 2)`, der Altersdurchschnitt des realen größeren Bundestages am Tag der Wahl war `r round(2021 - mean(gew$Geburtsjahr), digits = 2)`, also eine Differenz von `r  round(mean(gew$Geburtsjahr) - mean(Bundestag_Ampel$Geburtsjahr), digits = 2)` Jahren. Die Signifikanz diese Unterschieds können wir mittels [Bootstrapping](https://de.wikipedia.org/wiki/Bootstrapping-Verfahren) untersuchen. Die Idee ist, dass wir aus dem großen Bundestag von 736 Abgeordneten 598 zufällig auswählen und schauen ob das Durschnittsalter größer oder gleich dem Durschnittsalter nach dem Vorschlag ist. Dieses Zufallsexperiment wiederholen wir dann 100.000 mal und können so den p-Wert bestimmen, also die Wahrscheinlichkeit dass das Durchschnittsalter sich durch eine zufällige Auswahl soweit oder weiter erhöht. Hierbei unterscheiden wir zwei verschiedene Arten der Zufallsauswahl. Die zufällige Auswahl mit oder ohne zurücklegen. 
+
+Der p-Wert für eine Auswahl ohne Zurücklegen beträgt `r proz(experiment$p_noreplace, digits = 3)` und für eine Auswahl mit Zurücklegen `r proz(experiment$p_replace)`. Wählen wir also aus den 736 aktuellen Abgeordenten 598 aus, ist es kaum wahrscheinlich dass sich das Durchschnittsalter um 0.5 Jahre erhöht. Betrachten wir das Alter eines Abgeordneten allerdings als eine zufällige Auswahl aus einem riesigen Pool mit der Alterverteilung des aktuellen Bundestags ist diese Erhöhung immer noch plausibel unter der Annahme der zufälligen Auswahl. 
+
 
 ### Modellrechnung bei gleichem Vorschlag und einer Bundestagsgröße von 450
 
@@ -709,14 +750,31 @@ Kein_Direktmandat_k |>
                 caption = "", 
                 filter = "top")
 ```
-
-
 :::
 
+Analog zum Vorgehen in bei @fig-WKmap zeigt @fig-WKmap_k die Wahlkreiskarte für den Bundestag mit 450 Abgeordneten.
 
+```{r}
+#| label: fig-WKmap_k
+#| fig-cap: "Wahlkreiskarte für die Bundestagwahl 2021 neuberechnet nach dem Vorschlag der Regierungsfraktionen allerings mit nur 450 Mandaten und weiterhin 299 Wahlkreisen."
+Wahlkreisstatistik_k <- Bundestag_Ampel_k |> 
+  mutate(WK_Info = ifelse(is.na(Wahlkreisrang), "", paste0(Wahlkreisrang,". ",Gruppenname))) |> 
+  group_by(Wahlkreis) |> 
+  summarize(Anzahl_Abgeordnete = n(), Abgeordnete = paste(sort(WK_Info), collapse = ", ")) |>
+  mutate(Sieger_präsent = word(Abgeordnete, 1) == "1") |> 
+  right_join(shp |> mutate(Wahlkreis = paste(str_pad(Gebietsnummer, width = 3, pad = 0), Gebietsname)), 
+             by = "Wahlkreis") |> 
+  mutate(Anzahl_Abgeordnete = replace_na(Anzahl_Abgeordnete,0),
+         Abgeordnete = replace_na(Abgeordnete,""))
+WKmap_k <- Wahlkreisstatistik_k |> st_sf() |> 
+  mutate(Anzahl = factor(Anzahl_Abgeordnete), 
+         WK = Wahlkreis) |> 
+  ggplot(aes(fill = Anzahl, text = WK,label = Abgeordnete)) + geom_sf() + 
+  scale_fill_manual(values=c("#ff7b7b","#b3cde0","#6497b1","#005b96","#03396c")) +
+  theme_void() + 
+  theme(legend.title=element_blank())
+ggplotly(WKmap_k, tooltip = c("WK", "Abgeordnete"), 
+         height = 600)
+```
 
-
-
-
-
-
+Die Anzahl der "verwaisten" Wahlkreise würde sich von fünf auf `r sum(Wahlkreisstatistik_k$Anzahl_Abgeordnete==0)` erhöhen -- in Anbetracht einer Verkleinerung des Bundestages um 148 Mandate ein eher kleiner Wert. 
